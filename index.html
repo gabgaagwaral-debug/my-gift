@@ -5,62 +5,131 @@
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <style>
-      body { margin: 0; overflow: hidden; }
-      #action-btn {
-        position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-        padding: 14px 28px; background: #ff4757; color: #ffffff;
-        border: none; border-radius: 50px; font-size: 16px; font-weight: bold;
-        z-index: 9999; cursor: pointer;
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      #overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 99999;
+        cursor: pointer;
+      }
+      #play-btn {
+        padding: 16px 32px;
+        background: #ff4757;
+        color: #ffffff;
+        border: none;
+        border-radius: 50px;
+        font-size: 18px;
+        font-weight: bold;
+        box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
+      }
+      #hint {
+        color: #ffffff;
+        margin-top: 15px;
+        font-family: sans-serif;
+        font-size: 14px;
       }
     </style>
   </head>
   <body>
-    <!-- Эта кнопка ОБЯЗАТЕЛЬНА для iOS, чтобы включить звук -->
-    <button id="action-btn">Нажми, чтобы начать ✨</button>
+    <!-- Экран первичного взаимодействия для обхода блокировок браузера -->
+    <div id="overlay">
+      <button id="play-btn">Запустить ✨</button>
+      <div id="hint">Нажмите для старта звука и AR</div>
+    </div>
 
-    <a-scene mindar-image="imageTargetSrc: ./targets.mind; uiLoading: no; uiError: no;" 
-             color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" 
-             vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <!-- Скрытый нативный видео-элемент -->
+    <video 
+      id="main-video" 
+      src="./video.mp4" 
+      preload="auto" 
+      crossorigin="anonymous"
+      playsinline 
+      webkit-playsinline 
+      style="display: none;">
+    </video>
+
+    <a-scene 
+      mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.0001; filterBeta: 0.001;" 
+      color-space="sRGB" 
+      renderer="colorManagement: true, physicallyCorrectLights" 
+      vr-mode-ui="enabled: false" 
+      device-orientation-permission-ui="enabled: false">
       
       <a-assets>
-        <!-- ДОБАВЛЕНО: muted autoplay preload="auto" -->
-        <video id="ar-video-src" src="./video.mp4" muted autoplay preload="auto" playsinline webkit-playsinline></video>
         <a-asset-item id="heart-model" src="./heart.glb"></a-asset-item>
       </a-assets>
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-      <a-entity mindar-image-target="targetIndex: 0">
-        <!-- Видео -->
-        <a-video id="ar-video" src="#ar-video-src" position="0 0 0" height="1.5" width="1" rotation="0 0 0"></a-video>
+      <a-entity id="target-anchor" mindar-image-target="targetIndex: 0">
+        <!-- Плоскость с материалом на основе нативного видео -->
+        <a-plane 
+          id="ar-plane" 
+          position="0 0 0" 
+          height="1.5" 
+          width="1" 
+          material="src: #main-video; shader: flat; transparent: false;">
+        </a-plane>
         
         <!-- 3D Сердечко -->
-        <a-gltf-model id="ar-heart" src="#heart-model" position="0 0 0.3" scale="0.35 0.35 0.35" visible="false"
-                      animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
+        <a-gltf-model 
+          id="ar-heart" 
+          src="#heart-model" 
+          position="0 0 0.3" 
+          scale="0.35 0.35 0.35" 
+          visible="false"
+          animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
         </a-gltf-model>
       </a-entity>
     </a-scene>
 
     <script>
-      const videoSrc = document.querySelector('#ar-video-src');
+      const overlay = document.querySelector('#overlay');
+      const video = document.querySelector('#main-video');
+      const plane = document.querySelector('#ar-plane');
       const heart = document.querySelector('#ar-heart');
-      const btn = document.querySelector('#action-btn');
+      const targetAnchor = document.querySelector('#target-anchor');
 
-      // ДОБАВЛЕНО: Принудительный запуск при загрузке (но без звука)
-      window.addEventListener('load', () => {
-        videoSrc.play().catch(e => console.log("Auto-play blocked"));
+      let isReady = false;
+
+      // Старт воспроизведения и синхронизация текстуры
+      overlay.addEventListener('click', () => {
+        video.play().then(() => {
+          overlay.style.display = 'none';
+          isReady = true;
+        }).catch(err => {
+          console.error("Ошибка автозапуска видео:", err);
+          overlay.style.display = 'none';
+        });
       });
 
-      // Клик по кнопке ВКЛЮЧАЕТ ЗВУК и прячет кнопку
-      btn.addEventListener('click', () => {
-        videoSrc.muted = false; // Разблокируем звук
-        videoSrc.play();
-        btn.style.display = 'none';
+      // Управление паузой/воспроизведением при попадании фото в кадр
+      targetAnchor.addEventListener("targetFound", () => {
+        if (isReady && !video.ended) {
+          video.play();
+        }
       });
 
-      // Когда видео закончится, прячем его и показываем 3D-сердце
-      videoSrc.addEventListener('ended', () => {
-        document.querySelector('#ar-video').setAttribute('visible', 'false');
+      targetAnchor.addEventListener("targetLost", () => {
+        if (isReady) {
+          video.pause();
+        }
+      });
+
+      // Переключение на 3D-модель по завершении видео
+      video.addEventListener('ended', () => {
+        plane.setAttribute('visible', 'false');
         heart.setAttribute('visible', 'true');
       });
     </script>
