@@ -6,32 +6,41 @@
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script>
-      // Компонент автоматического приведения любой 3D-модели к аккуратному размеру
-      AFRAME.registerComponent('auto-fit-model', {
-        schema: { size: { type: 'number', default: 0.35 } },
+      // Генератор идеального объемного 3D-сердца через Three.js
+      AFRAME.registerComponent('procedural-heart', {
         init: function () {
-          this.el.addEventListener('model-loaded', () => {
-            const obj = this.el.getObject3D('mesh');
-            if (!obj) return;
+          const x = 0, y = 0;
+          const heartShape = new THREE.Shape();
+          heartShape.moveTo(x + 0.25, y + 0.25);
+          heartShape.bezierCurveTo(x + 0.25, y + 0.25, x + 0.20, y, x, y);
+          heartShape.bezierCurveTo(x - 0.30, y, x - 0.30, y + 0.35, x - 0.30, y + 0.35);
+          heartShape.bezierCurveTo(x - 0.30, y + 0.55, x - 0.10, y + 0.77, x + 0.25, y + 0.95);
+          heartShape.bezierCurveTo(x + 0.60, y + 0.77, x + 0.80, y + 0.55, x + 0.80, y + 0.35);
+          heartShape.bezierCurveTo(x + 0.80, y + 0.35, x + 0.80, y, x + 0.50, y);
+          heartShape.bezierCurveTo(x + 0.35, y, x + 0.25, y + 0.25, x + 0.25, y + 0.25);
 
-            const box = new THREE.Box3().setFromObject(obj);
-            const center = new THREE.Vector3();
-            const size = new THREE.Vector3();
-            box.getCenter(center);
-            box.getSize(size);
+          const extrudeSettings = {
+            depth: 0.2,
+            bevelEnabled: true,
+            bevelSegments: 5,
+            steps: 2,
+            bevelSize: 0.08,
+            bevelThickness: 0.08
+          };
 
-            // Центрируем модель в точке привязки
-            obj.position.x -= center.x;
-            obj.position.y -= center.y;
-            obj.position.z -= center.z;
+          const geometry = new THREE.ExtrudeGeometry(heartShape, extrudeSettings);
+          geometry.center();
 
-            // Вычисляем коэффициент масштабирования под целевой размер
-            const maxDim = Math.max(size.x, size.y, size.z);
-            if (maxDim > 0) {
-              const scaleFactor = this.data.size / maxDim;
-              obj.scale.set(scaleFactor, scaleFactor, scaleFactor);
-            }
+          const material = new THREE.MeshStandardMaterial({
+            color: 0xff1e42,
+            roughness: 0.2,
+            metalness: 0.3
           });
+
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.rotation.x = Math.PI; // Переворачиваем правильной стороной
+          mesh.scale.set(0.4, 0.4, 0.4); // Аккуратный размер над фото
+          this.el.setObject3D('mesh', mesh);
         }
       });
     </script>
@@ -98,10 +107,13 @@
           muted 
           loop="false">
         </video>
-        <a-asset-item id="heart-model" src="./heart.glb"></a-asset-item>
       </a-assets>
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <!-- Освещение для бликов на 3D-сердечке -->
+      <a-entity light="type: ambient; intensity: 0.8;"></a-entity>
+      <a-entity light="type: directional; intensity: 1.2; position: 1 2 2;"></a-entity>
 
       <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
         <!-- Видео -->
@@ -114,18 +126,13 @@
           rotation="0 0 0">
         </a-video>
         
-        <!-- Контейнер вращения 3D-модели -->
+        <!-- Объемное 3D Сердечко -->
         <a-entity 
-          id="heart-container" 
-          position="0 0 0.15" 
+          id="heart-entity" 
+          procedural-heart 
+          position="0 0 0.25" 
           visible="false"
           animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
-          <!-- 3D Сердечко с авто-подгонкой размера -->
-          <a-gltf-model 
-            id="heart-mesh" 
-            src="#heart-model" 
-            auto-fit-model="size: 0.35">
-          </a-gltf-model>
         </a-entity>
       </a-entity>
     </a-scene>
@@ -135,7 +142,7 @@
       const startBtn = document.querySelector('#start-btn');
       const video = document.querySelector('#ar-video-src');
       const videoMesh = document.querySelector('#ar-video-mesh');
-      const heartContainer = document.querySelector('#heart-container');
+      const heartEntity = document.querySelector('#heart-entity');
       const arTarget = document.querySelector('#ar-target');
 
       let targetVisible = false;
@@ -175,7 +182,7 @@
 
       video.addEventListener('ended', () => {
         videoMesh.setAttribute('visible', 'false');
-        heartContainer.setAttribute('visible', 'true');
+        heartEntity.setAttribute('visible', 'true');
       });
     </script>
   </body>
