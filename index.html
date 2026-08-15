@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>AR Gift</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <style>
@@ -15,54 +16,56 @@
         left: 0;
         width: 100vw;
         height: 100vh;
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.85);
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         z-index: 99999;
-        cursor: pointer;
       }
-      #play-btn {
-        padding: 16px 32px;
+      #start-btn {
+        padding: 16px 36px;
         background: #ff4757;
         color: #ffffff;
         border: none;
         border-radius: 50px;
         font-size: 18px;
         font-weight: bold;
-        box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
+        box-shadow: 0 4px 20px rgba(255, 71, 87, 0.5);
+        cursor: pointer;
       }
       #hint {
-        color: #ffffff;
-        margin-top: 15px;
+        color: #e0e0e0;
+        margin-top: 16px;
         font-family: sans-serif;
         font-size: 14px;
+        text-align: center;
+        padding: 0 20px;
       }
     </style>
   </head>
   <body>
-    <!-- Экран первичного взаимодействия для обхода блокировок браузера -->
     <div id="overlay">
-      <button id="play-btn">Запустить ✨</button>
-      <div id="hint">Нажмите для старта звука и AR</div>
+      <button id="start-btn">Нажми, чтобы начать ✨</button>
+      <div id="hint">После нажатия наведите камеру на фотографию</div>
     </div>
 
-    <!-- Скрытый нативный видео-элемент -->
+    <!-- Видео заменено на ./3.mp4 -->
     <video 
-      id="main-video" 
-      src="./video.mp4" 
+      id="video-feed" 
+      src="./3.mp4" 
       preload="auto" 
       crossorigin="anonymous"
       playsinline 
       webkit-playsinline 
+      x5-playsinline
       style="display: none;">
     </video>
 
     <a-scene 
-      mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.0001; filterBeta: 0.001;" 
+      mindar-image="imageTargetSrc: ./targets.mind;" 
       color-space="sRGB" 
-      renderer="colorManagement: true, physicallyCorrectLights" 
+      renderer="colorManagement: true, physicallyCorrectLights: true" 
       vr-mode-ui="enabled: false" 
       device-orientation-permission-ui="enabled: false">
       
@@ -72,21 +75,21 @@
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-      <a-entity id="target-anchor" mindar-image-target="targetIndex: 0">
-        <!-- Плоскость с материалом на основе нативного видео -->
+      <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
+        <!-- Видео плоскость -->
         <a-plane 
-          id="ar-plane" 
+          id="video-mesh" 
           position="0 0 0" 
           height="1.5" 
           width="1" 
-          material="src: #main-video; shader: flat; transparent: false;">
+          material="src: #video-feed; shader: flat; side: double; transparent: false;">
         </a-plane>
         
         <!-- 3D Сердечко -->
         <a-gltf-model 
-          id="ar-heart" 
+          id="heart-mesh" 
           src="#heart-model" 
-          position="0 0 0.3" 
+          position="0 0 0.35" 
           scale="0.35 0.35 0.35" 
           visible="false"
           animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
@@ -96,41 +99,54 @@
 
     <script>
       const overlay = document.querySelector('#overlay');
-      const video = document.querySelector('#main-video');
-      const plane = document.querySelector('#ar-plane');
-      const heart = document.querySelector('#ar-heart');
-      const targetAnchor = document.querySelector('#target-anchor');
+      const startBtn = document.querySelector('#start-btn');
+      const video = document.querySelector('#video-feed');
+      const videoMesh = document.querySelector('#video-mesh');
+      const heartMesh = document.querySelector('#heart-mesh');
+      const arTarget = document.querySelector('#ar-target');
 
-      let isReady = false;
+      let targetVisible = false;
+      let userStarted = false;
 
-      // Старт воспроизведения и синхронизация текстуры
-      overlay.addEventListener('click', () => {
+      // Обработка клика: инициализация и старт
+      startBtn.addEventListener('click', () => {
+        userStarted = true;
+        overlay.style.display = 'none';
+        
         video.play().then(() => {
-          overlay.style.display = 'none';
-          isReady = true;
-        }).catch(err => {
-          console.error("Ошибка автозапуска видео:", err);
-          overlay.style.display = 'none';
-        });
+          if (!targetVisible) {
+            video.pause();
+          }
+        }).catch(err => console.log("Init video play:", err));
       });
 
-      // Управление паузой/воспроизведением при попадании фото в кадр
-      targetAnchor.addEventListener("targetFound", () => {
-        if (isReady && !video.ended) {
+      // События обнаружения и потери цели
+      arTarget.addEventListener('targetFound', () => {
+        targetVisible = true;
+        if (userStarted && !video.ended) {
           video.play();
         }
       });
 
-      targetAnchor.addEventListener("targetLost", () => {
-        if (isReady) {
+      arTarget.addEventListener('targetLost', () => {
+        targetVisible = false;
+        if (userStarted && !video.ended) {
           video.pause();
         }
       });
 
-      // Переключение на 3D-модель по завершении видео
+      // Принудительное обновление текстуры WebGL
+      video.addEventListener('timeupdate', () => {
+        const mesh = videoMesh.getObject3D('mesh');
+        if (mesh && mesh.material && mesh.material.map) {
+          mesh.material.map.needsUpdate = true;
+        }
+      });
+
+      // Переключение на 3D-сердечко в конце
       video.addEventListener('ended', () => {
-        plane.setAttribute('visible', 'false');
-        heart.setAttribute('visible', 'true');
+        videoMesh.setAttribute('visible', 'false');
+        heartMesh.setAttribute('visible', 'true');
       });
     </script>
   </body>
