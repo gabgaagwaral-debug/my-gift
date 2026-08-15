@@ -50,18 +50,6 @@
       <div id="hint">После нажатия наведите камеру на фотографию</div>
     </div>
 
-    <!-- Видео заменено на ./3.mp4 -->
-    <video 
-      id="video-feed" 
-      src="./3.mp4" 
-      preload="auto" 
-      crossorigin="anonymous"
-      playsinline 
-      webkit-playsinline 
-      x5-playsinline
-      style="display: none;">
-    </video>
-
     <a-scene 
       mindar-image="imageTargetSrc: ./targets.mind;" 
       color-space="sRGB" 
@@ -70,6 +58,16 @@
       device-orientation-permission-ui="enabled: false">
       
       <a-assets>
+        <video 
+          id="ar-video-src" 
+          src="./3.mp4" 
+          preload="auto" 
+          crossorigin="anonymous"
+          playsinline 
+          webkit-playsinline 
+          muted 
+          loop="false">
+        </video>
         <a-asset-item id="heart-model" src="./heart.glb"></a-asset-item>
       </a-assets>
 
@@ -77,20 +75,21 @@
 
       <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
         <!-- Видео плоскость -->
-        <a-plane 
-          id="video-mesh" 
+        <a-video 
+          id="ar-video-mesh" 
+          src="#ar-video-src" 
           position="0 0 0" 
           height="1.5" 
           width="1" 
-          material="src: #video-feed; shader: flat; side: double; transparent: false;">
-        </a-plane>
+          rotation="0 0 0">
+        </a-video>
         
-        <!-- 3D Сердечко -->
+        <!-- 3D Сердечко с уменьшенным масштабом scale="0.03 0.03 0.03" -->
         <a-gltf-model 
           id="heart-mesh" 
           src="#heart-model" 
-          position="0 0 0.35" 
-          scale="0.35 0.35 0.35" 
+          position="0 0 0.2" 
+          scale="0.03 0.03 0.03" 
           visible="false"
           animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
         </a-gltf-model>
@@ -100,50 +99,46 @@
     <script>
       const overlay = document.querySelector('#overlay');
       const startBtn = document.querySelector('#start-btn');
-      const video = document.querySelector('#video-feed');
-      const videoMesh = document.querySelector('#video-mesh');
+      const video = document.querySelector('#ar-video-src');
+      const videoMesh = document.querySelector('#ar-video-mesh');
       const heartMesh = document.querySelector('#heart-mesh');
       const arTarget = document.querySelector('#ar-target');
 
       let targetVisible = false;
-      let userStarted = false;
+      let isUnlocked = false;
 
-      // Обработка клика: инициализация и старт
       startBtn.addEventListener('click', () => {
-        userStarted = true;
         overlay.style.display = 'none';
-        
+        video.muted = false;
         video.play().then(() => {
+          isUnlocked = true;
           if (!targetVisible) {
             video.pause();
           }
-        }).catch(err => console.log("Init video play:", err));
+        }).catch(() => {
+          video.muted = true;
+          video.play();
+          isUnlocked = true;
+          if (!targetVisible) {
+            video.pause();
+          }
+        });
       });
 
-      // События обнаружения и потери цели
       arTarget.addEventListener('targetFound', () => {
         targetVisible = true;
-        if (userStarted && !video.ended) {
+        if (isUnlocked && !video.ended) {
           video.play();
         }
       });
 
       arTarget.addEventListener('targetLost', () => {
         targetVisible = false;
-        if (userStarted && !video.ended) {
+        if (isUnlocked && !video.ended) {
           video.pause();
         }
       });
 
-      // Принудительное обновление текстуры WebGL
-      video.addEventListener('timeupdate', () => {
-        const mesh = videoMesh.getObject3D('mesh');
-        if (mesh && mesh.material && mesh.material.map) {
-          mesh.material.map.needsUpdate = true;
-        }
-      });
-
-      // Переключение на 3D-сердечко в конце
       video.addEventListener('ended', () => {
         videoMesh.setAttribute('visible', 'false');
         heartMesh.setAttribute('visible', 'true');
