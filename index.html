@@ -5,45 +5,38 @@
     <title>AR Gift</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+    
     <script>
-      // Генератор идеального объемного 3D-сердца через Three.js
-      AFRAME.registerComponent('procedural-heart', {
+      // Универсальный компонент: центрирует и выравнивает размер любой GLB модели ровно под фотокарточку
+      AFRAME.registerComponent('fit-heart', {
         init: function () {
-          const x = 0, y = 0;
-          const heartShape = new THREE.Shape();
-          heartShape.moveTo(x + 0.25, y + 0.25);
-          heartShape.bezierCurveTo(x + 0.25, y + 0.25, x + 0.20, y, x, y);
-          heartShape.bezierCurveTo(x - 0.30, y, x - 0.30, y + 0.35, x - 0.30, y + 0.35);
-          heartShape.bezierCurveTo(x - 0.30, y + 0.55, x - 0.10, y + 0.77, x + 0.25, y + 0.95);
-          heartShape.bezierCurveTo(x + 0.60, y + 0.77, x + 0.80, y + 0.55, x + 0.80, y + 0.35);
-          heartShape.bezierCurveTo(x + 0.80, y + 0.35, x + 0.80, y, x + 0.50, y);
-          heartShape.bezierCurveTo(x + 0.35, y, x + 0.25, y + 0.25, x + 0.25, y + 0.25);
+          this.el.addEventListener('model-loaded', () => {
+            const obj = this.el.getObject3D('mesh');
+            if (!obj) return;
 
-          const extrudeSettings = {
-            depth: 0.2,
-            bevelEnabled: true,
-            bevelSegments: 5,
-            steps: 2,
-            bevelSize: 0.08,
-            bevelThickness: 0.08
-          };
+            const box = new THREE.Box3().setFromObject(obj);
+            const center = new THREE.Vector3();
+            const size = new THREE.Vector3();
+            box.getCenter(center);
+            box.getSize(size);
 
-          const geometry = new THREE.ExtrudeGeometry(heartShape, extrudeSettings);
-          geometry.center();
+            // Сдвиг геометрии в центр точки привязки
+            obj.position.x -= center.x;
+            obj.position.y -= center.y;
+            obj.position.z -= center.z;
 
-          const material = new THREE.MeshStandardMaterial({
-            color: 0xff1e42,
-            roughness: 0.2,
-            metalness: 0.3
+            // Масштабирование: вписываем модель строго в 35 см
+            const maxDim = Math.max(size.x, size.y, size.z);
+            if (maxDim > 0) {
+              const targetSize = 0.35;
+              const scale = targetSize / maxDim;
+              obj.scale.set(scale, scale, scale);
+            }
           });
-
-          const mesh = new THREE.Mesh(geometry, material);
-          mesh.rotation.x = Math.PI; // Переворачиваем правильной стороной
-          mesh.scale.set(0.4, 0.4, 0.4); // Аккуратный размер над фото
-          this.el.setObject3D('mesh', mesh);
         }
       });
     </script>
+
     <style>
       body {
         margin: 0;
@@ -101,18 +94,20 @@
           id="ar-video-src" 
           src="./3.mp4" 
           preload="auto" 
-          crossorigin="anonymous"
+          crossorigin="anonymous" 
           playsinline 
           webkit-playsinline 
           muted 
           loop="false">
         </video>
+        <!-- Добавлен параметр ?v=3 для принудительного сброса кэша браузера -->
+        <a-asset-item id="heart-model" src="./heart.glb?v=3"></a-asset-item>
       </a-assets>
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-      <!-- Освещение для бликов на 3D-сердечке -->
-      <a-entity light="type: ambient; intensity: 0.8;"></a-entity>
+      <!-- Освещение для модели -->
+      <a-entity light="type: ambient; intensity: 0.9;"></a-entity>
       <a-entity light="type: directional; intensity: 1.2; position: 1 2 2;"></a-entity>
 
       <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
@@ -126,13 +121,18 @@
           rotation="0 0 0">
         </a-video>
         
-        <!-- Объемное 3D Сердечко -->
+        <!-- Контейнер вращения 3D-модели -->
         <a-entity 
-          id="heart-entity" 
-          procedural-heart 
-          position="0 0 0.25" 
+          id="heart-container" 
+          position="0 0 0.2" 
           visible="false"
           animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
+          <!-- Модель с автоматической нормализацией габаритов -->
+          <a-gltf-model 
+            id="heart-mesh" 
+            src="#heart-model" 
+            fit-heart>
+          </a-gltf-model>
         </a-entity>
       </a-entity>
     </a-scene>
@@ -142,7 +142,7 @@
       const startBtn = document.querySelector('#start-btn');
       const video = document.querySelector('#ar-video-src');
       const videoMesh = document.querySelector('#ar-video-mesh');
-      const heartEntity = document.querySelector('#heart-entity');
+      const heartContainer = document.querySelector('#heart-container');
       const arTarget = document.querySelector('#ar-target');
 
       let targetVisible = false;
@@ -153,36 +153,28 @@
         video.muted = false;
         video.play().then(() => {
           isUnlocked = true;
-          if (!targetVisible) {
-            video.pause();
-          }
+          if (!targetVisible) video.pause();
         }).catch(() => {
           video.muted = true;
           video.play();
           isUnlocked = true;
-          if (!targetVisible) {
-            video.pause();
-          }
+          if (!targetVisible) video.pause();
         });
       });
 
       arTarget.addEventListener('targetFound', () => {
         targetVisible = true;
-        if (isUnlocked && !video.ended) {
-          video.play();
-        }
+        if (isUnlocked && !video.ended) video.play();
       });
 
       arTarget.addEventListener('targetLost', () => {
         targetVisible = false;
-        if (isUnlocked && !video.ended) {
-          video.pause();
-        }
+        if (isUnlocked && !video.ended) video.pause();
       });
 
       video.addEventListener('ended', () => {
         videoMesh.setAttribute('visible', 'false');
-        heartEntity.setAttribute('visible', 'true');
+        heartContainer.setAttribute('visible', 'true');
       });
     </script>
   </body>
