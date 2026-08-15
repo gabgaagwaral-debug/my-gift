@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+    <style>
+      body { margin: 0; overflow: hidden; }
+      #action-btn {
+        position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+        padding: 14px 28px; background: #ff4757; color: #ffffff;
+        border: none; border-radius: 50px; font-size: 16px; font-weight: bold;
+        z-index: 9999; cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Эта кнопка нужна, чтобы iPhone разрешил включить звук в видео -->
+    <button id="action-btn">Нажми, чтобы начать ✨</button>
+
+    <a-scene mindar-image="imageTargetSrc: ./targets.mind; uiLoading: no; uiError: no;" 
+             color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" 
+             vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+      
+      <a-assets>
+        <video id="ar-video-src" src="./video.mp4" preload="auto" playsinline webkit-playsinline></video>
+        <a-asset-item id="heart-model" src="./heart.glb"></a-asset-item>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <a-entity mindar-image-target="targetIndex: 0">
+        <!-- Видео. Если фото вертикальное, height="1.5", width="1" -->
+        <a-video id="ar-video" src="#ar-video-src" position="0 0 0" height="1.5" width="1" rotation="0 0 0"></a-video>
+        
+        <!-- 3D Сердечко. Появится после видео и будет парить над фото (position Z = 0.3) -->
+        <a-gltf-model id="ar-heart" src="#heart-model" position="0 0 0.3" scale="0.35 0.35 0.35" visible="false"
+                      animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
+        </a-gltf-model>
+      </a-entity>
+    </a-scene>
+
+    <script>
+      const video = document.querySelector('#ar-video-src');
+      const heart = document.querySelector('#ar-heart');
+      const btn = document.querySelector('#action-btn');
+
+      // Клик по кнопке запускает видео со звуком
+      btn.addEventListener('click', () => {
+        video.play();
+        btn.style.display = 'none';
+      });
+
+      // Когда видео закончится, прячем его и показываем 3D-сердце
+      video.addEventListener('ended', () => {
+        document.querySelector('#ar-video').setAttribute('visible', 'false');
+        heart.setAttribute('visible', 'true');
+      });
+    </script>
+  </body>
+</html>
