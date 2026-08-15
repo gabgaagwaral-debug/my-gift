@@ -15,7 +15,7 @@
     </style>
   </head>
   <body>
-    <!-- Эта кнопка нужна, чтобы iPhone разрешил включить звук в видео -->
+    <!-- Эта кнопка ОБЯЗАТЕЛЬНА для iOS, чтобы включить звук -->
     <button id="action-btn">Нажми, чтобы начать ✨</button>
 
     <a-scene mindar-image="imageTargetSrc: ./targets.mind; uiLoading: no; uiError: no;" 
@@ -23,17 +23,18 @@
              vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
       
       <a-assets>
-        <video id="ar-video-src" src="./video.mp4" preload="auto" playsinline webkit-playsinline></video>
+        <!-- ДОБАВЛЕНО: muted autoplay preload="auto" -->
+        <video id="ar-video-src" src="./video.mp4" muted autoplay preload="auto" playsinline webkit-playsinline></video>
         <a-asset-item id="heart-model" src="./heart.glb"></a-asset-item>
       </a-assets>
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-        <!-- Видео. Если фото вертикальное, height="1.5", width="1" -->
+        <!-- Видео -->
         <a-video id="ar-video" src="#ar-video-src" position="0 0 0" height="1.5" width="1" rotation="0 0 0"></a-video>
         
-        <!-- 3D Сердечко. Появится после видео и будет парить над фото (position Z = 0.3) -->
+        <!-- 3D Сердечко -->
         <a-gltf-model id="ar-heart" src="#heart-model" position="0 0 0.3" scale="0.35 0.35 0.35" visible="false"
                       animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
         </a-gltf-model>
@@ -41,18 +42,24 @@
     </a-scene>
 
     <script>
-      const video = document.querySelector('#ar-video-src');
+      const videoSrc = document.querySelector('#ar-video-src');
       const heart = document.querySelector('#ar-heart');
       const btn = document.querySelector('#action-btn');
 
-      // Клик по кнопке запускает видео со звуком
+      // ДОБАВЛЕНО: Принудительный запуск при загрузке (но без звука)
+      window.addEventListener('load', () => {
+        videoSrc.play().catch(e => console.log("Auto-play blocked"));
+      });
+
+      // Клик по кнопке ВКЛЮЧАЕТ ЗВУК и прячет кнопку
       btn.addEventListener('click', () => {
-        video.play();
+        videoSrc.muted = false; // Разблокируем звук
+        videoSrc.play();
         btn.style.display = 'none';
       });
 
       // Когда видео закончится, прячем его и показываем 3D-сердце
-      video.addEventListener('ended', () => {
+      videoSrc.addEventListener('ended', () => {
         document.querySelector('#ar-video').setAttribute('visible', 'false');
         heart.setAttribute('visible', 'true');
       });
