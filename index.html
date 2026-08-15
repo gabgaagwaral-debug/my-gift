@@ -5,6 +5,36 @@
     <title>AR Gift</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+    <script>
+      // Компонент автоматического приведения любой 3D-модели к аккуратному размеру
+      AFRAME.registerComponent('auto-fit-model', {
+        schema: { size: { type: 'number', default: 0.35 } },
+        init: function () {
+          this.el.addEventListener('model-loaded', () => {
+            const obj = this.el.getObject3D('mesh');
+            if (!obj) return;
+
+            const box = new THREE.Box3().setFromObject(obj);
+            const center = new THREE.Vector3();
+            const size = new THREE.Vector3();
+            box.getCenter(center);
+            box.getSize(size);
+
+            // Центрируем модель в точке привязки
+            obj.position.x -= center.x;
+            obj.position.y -= center.y;
+            obj.position.z -= center.z;
+
+            // Вычисляем коэффициент масштабирования под целевой размер
+            const maxDim = Math.max(size.x, size.y, size.z);
+            if (maxDim > 0) {
+              const scaleFactor = this.data.size / maxDim;
+              obj.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            }
+          });
+        }
+      });
+    </script>
     <style>
       body {
         margin: 0;
@@ -74,7 +104,7 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
-        <!-- Видео плоскость -->
+        <!-- Видео -->
         <a-video 
           id="ar-video-mesh" 
           src="#ar-video-src" 
@@ -84,15 +114,19 @@
           rotation="0 0 0">
         </a-video>
         
-        <!-- 3D Сердечко с уменьшенным масштабом scale="0.03 0.03 0.03" -->
-        <a-gltf-model 
-          id="heart-mesh" 
-          src="#heart-model" 
-          position="0 0 0.2" 
-          scale="0.03 0.03 0.03" 
+        <!-- Контейнер вращения 3D-модели -->
+        <a-entity 
+          id="heart-container" 
+          position="0 0 0.15" 
           visible="false"
           animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
-        </a-gltf-model>
+          <!-- 3D Сердечко с авто-подгонкой размера -->
+          <a-gltf-model 
+            id="heart-mesh" 
+            src="#heart-model" 
+            auto-fit-model="size: 0.35">
+          </a-gltf-model>
+        </a-entity>
       </a-entity>
     </a-scene>
 
@@ -101,7 +135,7 @@
       const startBtn = document.querySelector('#start-btn');
       const video = document.querySelector('#ar-video-src');
       const videoMesh = document.querySelector('#ar-video-mesh');
-      const heartMesh = document.querySelector('#heart-mesh');
+      const heartContainer = document.querySelector('#heart-container');
       const arTarget = document.querySelector('#ar-target');
 
       let targetVisible = false;
@@ -141,7 +175,7 @@
 
       video.addEventListener('ended', () => {
         videoMesh.setAttribute('visible', 'false');
-        heartMesh.setAttribute('visible', 'true');
+        heartContainer.setAttribute('visible', 'true');
       });
     </script>
   </body>
